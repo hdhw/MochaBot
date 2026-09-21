@@ -106,6 +106,13 @@ public sealed class MochaModule : InteractionModuleBase<SocketInteractionContext
         });
     }
 
+    private static readonly (string Category, string[] ServiceIds)[] StatusCategories =
+    {
+        ("2025 | Mocha", new[] { "mono", "www", "econ", "discovery", "img" }),
+        ("Misc | Mocha", new[] { "git" }),
+        ("2023 | Mocha", new[] { "legacy" }),
+    };
+
     [SlashCommand("status", "Show live uptime for every Mocha service.")]
     public async Task Status()
     {
@@ -119,18 +126,38 @@ public sealed class MochaModule : InteractionModuleBase<SocketInteractionContext
                 .WithColor(overall == "operational" ? BotEmbeds.Success : BotEmbeds.Warn)
                 .WithDescription($"Overall: **{overall}**");
 
-            if (status.Sub("services") is { ValueKind: JsonValueKind.Array } services)
+            var services = status.Sub("services") is { ValueKind: JsonValueKind.Array } arr
+                ? arr.EnumerateArray().ToList()
+                : new List<JsonElement>();
+
+            string Line(JsonElement svc)
             {
-                foreach (var svc in services.EnumerateArray())
-                {
-                    var name = svc.Str("name") ?? svc.Str("id") ?? "Service";
-                    var current = svc.Str("current") ?? "unknown";
-                    var emoji = current switch { "up" => "🟢", "down" => "🔴", _ => "🟡" };
-                    var uptime7d = svc.Double("uptime7d");
-                    var latency = svc.Long("latencyMs");
-                    embed.AddField($"{emoji} {name}", $"{current} · {uptime7d:F2}% (7d) · {latency}ms", true);
-                }
+                var name = svc.Str("name") ?? svc.Str("id") ?? "Service";
+                var current = svc.Str("current") ?? "unknown";
+                var emoji = current switch { "up" => "🟢", "down" => "🔴", _ => "🟡" };
+                var uptime7d = svc.Double("uptime7d");
+                var latency = svc.Long("latencyMs");
+                return $"{emoji} **{name}** — {current} · {uptime7d:F2}% (7d) · {latency}ms";
             }
+
+            var seen = new HashSet<string>();
+            foreach (var (category, serviceIds) in StatusCategories)
+            {
+                var lines = serviceIds
+                    .Select(id => services.FirstOrDefault(s => s.Str("id") == id))
+                    .Where(s => s.ValueKind == JsonValueKind.Object)
+                    .ToList();
+
+                foreach (var svc in lines)
+                    seen.Add(svc.Str("id")!);
+
+                if (lines.Count > 0)
+                    embed.AddField(category, string.Join("\n", lines.Select(Line)));
+            }
+
+            var leftover = services.Where(s => s.Str("id") is { } id && !seen.Contains(id)).ToList();
+            if (leftover.Count > 0)
+                embed.AddField("Other", string.Join("\n", leftover.Select(Line)));
 
             embed.WithCurrentTimestamp();
             await FollowupAsync(embed: embed.Build());
