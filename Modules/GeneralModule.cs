@@ -25,7 +25,7 @@ public sealed class GeneralModule : InteractionModuleBase<SocketInteractionConte
         var embed = BotEmbeds.Base("Mocha Bot Commands")
             .AddField("🛡️ Moderation", "`kick` `ban` `unban` `timeout` `untimeout` `warn` `warnings` `removewarning` `clearwarnings` `purge` `slowmode` `lock` `unlock` `nickname` `case` `cases`")
             .AddField("⚙️ Admin", "`config` — logs, welcome, goodbye, autorole, automod, starboard, tickets, suggestions, roles, level rewards")
-            .AddField("☕ Mocha", "`player` `room` `status` `events` `photos`")
+            .AddField("☕ Mocha", "`player` `room` `online` `status` `shop` `toprooms` `announcements` `events` `photos`")
             .AddField("✨ Engagement", "`rank` `leaderboard` `daily` `balance` `pay`")
             .AddField("🧰 Utility", "`poll` `giveaway` `reactionrole` `embed` `tag` `suggest` `ticket` `remind` `reminders`")
             .AddField("🔗 Mocha Admin", "`link` `unlink` `whoami` `data-export` `edit-profile` (edit-profile needs a linked admin account)")

@@ -67,4 +67,9 @@ public static class Json
 
     public static JsonElement? Sub(this JsonElement element, string name) =>
         element.TryProp(name, out var value) ? value : null;
+
+    public static double Double(this JsonElement element, string name, double fallback = 0) =>
+        element.TryProp(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var d)
+            ? d
+            : fallback;
 }

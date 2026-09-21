@@ -211,8 +211,49 @@ public sealed class MochaApiClient
     public async Task<JsonElement> GetStatusAsync(CancellationToken ct = default) =>
         AsObject(await RequestAsync("/recnet/api/status", ct));
 
+    public async Task<JsonElement> GetPublicStatusAsync(CancellationToken ct = default)
+    {
+        const string url = "https://status.playmocha.xyz/api/status";
+        HttpResponseMessage response;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Accept.ParseAdd("application/json");
+            response = await _http.SendAsync(request, ct);
+        }
+        catch (Exception ex)
+        {
+            throw new MochaApiException("The Mocha status page could not be reached.", null, ex);
+        }
+
+        var raw = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+            throw new MochaApiException($"Status page returned HTTP {(int)response.StatusCode}.", response.StatusCode);
+
+        try
+        {
+            return JsonDocument.Parse(raw).RootElement.Clone();
+        }
+        catch
+        {
+            throw new MochaApiException("The status page returned an unexpected response.");
+        }
+    }
+
     public async Task<List<JsonElement>> GetEventsAsync(CancellationToken ct = default) =>
         AsList(await RequestAsync("/recnet/api/events", ct));
+
+    public async Task<List<JsonElement>> GetTopRoomsAsync(string? search = null, CancellationToken ct = default)
+    {
+        var query = string.IsNullOrWhiteSpace(search) ? "" : $"?search={Uri.EscapeDataString(search.Trim())}";
+        return AsList(await RequestAsync($"/recnet/api/rooms{query}", ct));
+    }
+
+    public async Task<List<JsonElement>> GetAnnouncementsAsync(CancellationToken ct = default) =>
+        AsList(await RequestAsync("/recnet/api/announcements", ct));
+
+    public async Task<JsonElement> GetShopAsync(CancellationToken ct = default) =>
+        AsObject(await RequestAsync("/recnet/api/shop", ct));
 
     public async Task<List<JsonElement>> GetPhotosAsync(int take = 25, CancellationToken ct = default)
     {

@@ -88,8 +88,8 @@ public sealed class MochaModule : InteractionModuleBase<SocketInteractionContext
         });
     }
 
-    [SlashCommand("status", "Show the live Mocha server status.")]
-    public async Task Status()
+    [SlashCommand("online", "Show how many players and rooms are live on Mocha right now.")]
+    public async Task Online()
     {
         await DeferAsync();
         await Guard(async () =>
@@ -103,6 +103,112 @@ public sealed class MochaModule : InteractionModuleBase<SocketInteractionContext
                 .WithCurrentTimestamp()
                 .Build();
             await FollowupAsync(embed: embed);
+        });
+    }
+
+    [SlashCommand("status", "Show live uptime for every Mocha service.")]
+    public async Task Status()
+    {
+        await DeferAsync();
+        await Guard(async () =>
+        {
+            var status = await _mocha.GetPublicStatusAsync();
+            var overall = status.Str("overall") ?? "unknown";
+            var embed = BotEmbeds.Base("Mocha Status")
+                .WithUrl("https://status.playmocha.xyz/")
+                .WithColor(overall == "operational" ? BotEmbeds.Success : BotEmbeds.Warn)
+                .WithDescription($"Overall: **{overall}**");
+
+            if (status.Sub("services") is { ValueKind: JsonValueKind.Array } services)
+            {
+                foreach (var svc in services.EnumerateArray())
+                {
+                    var name = svc.Str("name") ?? svc.Str("id") ?? "Service";
+                    var current = svc.Str("current") ?? "unknown";
+                    var emoji = current switch { "up" => "🟢", "down" => "🔴", _ => "🟡" };
+                    var uptime7d = svc.Double("uptime7d");
+                    var latency = svc.Long("latencyMs");
+                    embed.AddField($"{emoji} {name}", $"{current} · {uptime7d:F2}% (7d) · {latency}ms", true);
+                }
+            }
+
+            embed.WithCurrentTimestamp();
+            await FollowupAsync(embed: embed.Build());
+        });
+    }
+
+    [SlashCommand("shop", "Show today's rotating Mocha item shop.")]
+    public async Task Shop()
+    {
+        await DeferAsync();
+        await Guard(async () =>
+        {
+            var shop = await _mocha.GetShopAsync();
+            if (shop.Sub("items") is not { ValueKind: JsonValueKind.Array } items || !items.EnumerateArray().Any())
+            {
+                await FollowupAsync(embed: BotEmbeds.Info("The shop is empty right now."));
+                return;
+            }
+
+            var lines = items.EnumerateArray().Take(15).Select(i =>
+            {
+                var stars = new string('⭐', Math.Clamp(i.Int("stars"), 0, 6));
+                var owned = i.Bool("owned") ? " *(owned)*" : "";
+                return $"**{i.Str("friendlyName")}** — {i.Long("price")} tokens {stars}{owned}";
+            });
+
+            await FollowupAsync(embed: BotEmbeds.Base("☕ Mocha Shop", string.Join("\n", lines))
+                .WithFooter("Rotates daily")
+                .Build());
+        });
+    }
+
+    [SlashCommand("toprooms", "Show the most-visited public Mocha rooms.")]
+    public async Task TopRooms([Summary(description: "Optional search term")] string? search = null)
+    {
+        await DeferAsync();
+        await Guard(async () =>
+        {
+            var rooms = await _mocha.GetTopRoomsAsync(search);
+            if (rooms.Count == 0)
+            {
+                await FollowupAsync(embed: BotEmbeds.Info("No rooms found."));
+                return;
+            }
+
+            var lines = rooms.Take(10).Select(r =>
+            {
+                var stats = r.Sub("stats");
+                var visits = stats?.Long("visits") ?? 0;
+                return $"**^{r.Str("name")}** — {visits:N0} visits";
+            });
+
+            await FollowupAsync(embed: BotEmbeds.Base(string.IsNullOrWhiteSpace(search) ? "Top Mocha Rooms" : $"Rooms matching \"{search}\"", string.Join("\n", lines)).Build());
+        });
+    }
+
+    [SlashCommand("announcements", "Show official Mocha announcements.")]
+    public async Task Announcements()
+    {
+        await DeferAsync();
+        await Guard(async () =>
+        {
+            var announcements = await _mocha.GetAnnouncementsAsync();
+            if (announcements.Count == 0)
+            {
+                await FollowupAsync(embed: BotEmbeds.Info("No announcements right now."));
+                return;
+            }
+
+            var embed = BotEmbeds.Base("📢 Mocha Announcements");
+            foreach (var a in announcements.Take(5))
+            {
+                var pin = a.Bool("pinned") ? "📌 " : "";
+                var body = a.Str("bodyMarkdown") ?? "";
+                embed.AddField($"{pin}{a.Str("title")}", body.Length > 200 ? body[..200] + "…" : body);
+            }
+
+            await FollowupAsync(embed: embed.Build());
         });
     }
 
