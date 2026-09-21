@@ -113,6 +113,20 @@ public sealed class MochaModule : InteractionModuleBase<SocketInteractionContext
         ("2023 | Mocha", new[] { "legacy" }),
     };
 
+    private const string StatusGood = "<:statusgood:1551402637776392312>";
+    private const string StatusMid = "<:statusmid:1551402578003365908>";
+    private const string StatusBad = "<:statusbad:1551402604800770088>";
+
+    // "Ping Determination" - the icon reflects actual latency, not just whether the
+    // service is reporting up, so a slow-but-technically-up service still reads as bad.
+    private static string PingDetermination(string current, long latencyMs) => current switch
+    {
+        "down" => StatusBad,
+        _ when latencyMs <= 100 => StatusGood,
+        _ when latencyMs <= 300 => StatusMid,
+        _ => StatusBad,
+    };
+
     [SlashCommand("status", "Show live uptime for every Mocha service.")]
     public async Task Status()
     {
@@ -134,9 +148,9 @@ public sealed class MochaModule : InteractionModuleBase<SocketInteractionContext
             {
                 var name = svc.Str("name") ?? svc.Str("id") ?? "Service";
                 var current = svc.Str("current") ?? "unknown";
-                var emoji = current switch { "up" => "🟢", "down" => "🔴", _ => "🟡" };
-                var uptime7d = svc.Double("uptime7d");
                 var latency = svc.Long("latencyMs");
+                var emoji = PingDetermination(current, latency);
+                var uptime7d = svc.Double("uptime7d");
                 return $"{emoji} **{name}** — {current} · {uptime7d:F2}% (7d) · {latency}ms";
             }
 
